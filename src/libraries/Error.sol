@@ -185,6 +185,9 @@ error InitParamZero(string name);
 /// @dev Thrown when data hashes where expected but not where present on the tx
 error MissingDataHashes();
 
+/// @dev Batch Data validation over avail bridge failed with the given merkle proof input
+error BatchDataValidationForAvailDAFailed(bytes32);
+
 /// @dev Thrown when rollup is not updated with updateRollupAddress
 error RollupNotChanged();
 

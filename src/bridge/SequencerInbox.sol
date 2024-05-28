@@ -19,6 +19,7 @@ import {
     BadSequencerNumber,
     AlreadyValidDASKeyset,
     NoSuchKeyset,
+    BatchDataValidationForAvailDAFailed,
     NotForked,
     NotBatchPosterManager,
     RollupNotChanged,
@@ -40,12 +41,16 @@ import "../precompiles/ArbGasInfo.sol";
 import "../precompiles/ArbSys.sol";
 import "../libraries/IReader4844.sol";
 
+import "../data-availability/IAvailDABridge.sol";
+import "../data-availability/MerkleProofInput.sol";
+import "../data-availability/BlobPointer.sol";
 import {L1MessageType_batchPostingReport} from "../libraries/MessageTypes.sol";
 import "../libraries/DelegateCallAware.sol";
 import {IGasRefunder} from "../libraries/IGasRefunder.sol";
 import {GasRefundEnabled} from "../libraries/GasRefundEnabled.sol";
 import "../libraries/ArbitrumChecker.sol";
 import {IERC20Bridge} from "./IERC20Bridge.sol";
+//import "hardhat/console.sol";
 
 /**
  * @title  Accepts batches from the sequencer and adds them to the rollup inbox.
@@ -70,6 +75,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
 
     /// @inheritdoc ISequencerInbox
     bytes1 public constant DAS_MESSAGE_HEADER_FLAG = 0x80;
+
+    /// @inheritdoc ISequencerInbox
+    bytes1 public constant AVAIL_MESSAGE_HEADER_FLAG = 0x0a;
 
     /// @inheritdoc ISequencerInbox
     bytes1 public constant TREE_DAS_MESSAGE_HEADER_FLAG = 0x08;
@@ -125,11 +133,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     // True if the chain this SequencerInbox is deployed on uses custom fee token
     bool public immutable isUsingFeeToken;
 
-    constructor(
-        uint256 _maxDataSize,
-        IReader4844 reader4844_,
-        bool _isUsingFeeToken
-    ) {
+    IAvailDABridge public availBridge;
+
+    constructor(uint256 _maxDataSize, IReader4844 reader4844_, bool _isUsingFeeToken) {
         maxDataSize = _maxDataSize;
         if (hostChainIsArbitrum) {
             if (reader4844_ != IReader4844(address(0))) revert DataBlobsNotSupported();
@@ -178,7 +184,8 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
 
     function initialize(
         IBridge bridge_,
-        ISequencerInbox.MaxTimeVariation calldata maxTimeVariation_
+        ISequencerInbox.MaxTimeVariation calldata maxTimeVariation_,
+        IAvailDABridge availBridge_
     ) external onlyDelegated {
         if (bridge != IBridge(address(0))) revert AlreadyInit();
         if (bridge_ == IBridge(address(0))) revert HadZeroInit();
@@ -199,6 +206,7 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         rollup = bridge_.rollup();
 
         _setMaxTimeVariation(maxTimeVariation_);
+        availBridge = availBridge_;
     }
 
     /// @notice Allows the rollup owner to sync the rollup address
@@ -238,16 +246,7 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         futureSeconds = 1;
     }
 
-    function maxTimeVariation()
-        external
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256
-        )
-    {
+    function maxTimeVariation() external view returns (uint256, uint256, uint256, uint256) {
         (
             uint64 delayBlocks_,
             uint64 futureBlocks_,
@@ -263,16 +262,7 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         );
     }
 
-    function maxTimeVariationInternal()
-        internal
-        view
-        returns (
-            uint64,
-            uint64,
-            uint64,
-            uint64
-        )
-    {
+    function maxTimeVariationInternal() internal view returns (uint64, uint64, uint64, uint64) {
         if (_chainIdChanged()) {
             return (1, 1, 1, 1);
         } else {
@@ -518,11 +508,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         emit SequencerBatchData(seqMessageIndex, data);
     }
 
-    function packHeader(uint256 afterDelayedMessagesRead)
-        internal
-        view
-        returns (bytes memory, IBridge.TimeBounds memory)
-    {
+    function packHeader(
+        uint256 afterDelayedMessagesRead
+    ) internal view returns (bytes memory, IBridge.TimeBounds memory) {
         IBridge.TimeBounds memory timeBounds = getTimeBounds();
         bytes memory header = abi.encodePacked(
             timeBounds.minTimestamp,
@@ -540,11 +528,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     /// @param  afterDelayedMessagesRead The delayed messages count read up to
     /// @return The data hash
     /// @return The timebounds within which the message should be processed
-    function formEmptyDataHash(uint256 afterDelayedMessagesRead)
-        internal
-        view
-        returns (bytes32, IBridge.TimeBounds memory)
-    {
+    function formEmptyDataHash(
+        uint256 afterDelayedMessagesRead
+    ) internal view returns (bytes32, IBridge.TimeBounds memory) {
         (bytes memory header, IBridge.TimeBounds memory timeBounds) = packHeader(
             afterDelayedMessagesRead
         );
@@ -561,7 +547,8 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
             headerByte == BROTLI_MESSAGE_HEADER_FLAG ||
             headerByte == DAS_MESSAGE_HEADER_FLAG ||
             (headerByte == (DAS_MESSAGE_HEADER_FLAG | TREE_DAS_MESSAGE_HEADER_FLAG)) ||
-            headerByte == ZERO_HEAVY_MESSAGE_HEADER_FLAG;
+            headerByte == ZERO_HEAVY_MESSAGE_HEADER_FLAG ||
+            headerByte == AVAIL_MESSAGE_HEADER_FLAG;
     }
 
     /// @dev    Form a hash of the data taken from the calldata
@@ -569,11 +556,10 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     /// @param  afterDelayedMessagesRead The delayed messages count read up to
     /// @return The data hash
     /// @return The timebounds within which the message should be processed
-    function formCallDataHash(bytes calldata data, uint256 afterDelayedMessagesRead)
-        internal
-        view
-        returns (bytes32, IBridge.TimeBounds memory)
-    {
+    function formCallDataHash(
+        bytes calldata data,
+        uint256 afterDelayedMessagesRead
+    ) internal view returns (bytes32, IBridge.TimeBounds memory) {
         uint256 fullDataLen = HEADER_LENGTH + data.length;
         if (fullDataLen > maxDataSize) revert DataTooLarge(fullDataLen, maxDataSize);
 
@@ -597,6 +583,43 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
                 bytes32 dasKeysetHash = bytes32(data[1:33]);
                 if (!dasKeySetInfo[dasKeysetHash].isValidKeyset) revert NoSuchKeyset(dasKeysetHash);
             }
+            // Avail batch expect to have the type byte set, followed by
+            if (data[0] & AVAIL_MESSAGE_HEADER_FLAG != 0 && data.length >= 100) {
+                // console.logString("Avail header found");
+                BlobPointer memory blobPointer;
+                (
+                    blobPointer.blockHash,
+                    blobPointer.sender,
+                    blobPointer.nonce,
+                    blobPointer.dasTreeRootHash,
+                    blobPointer.merkleProofInput
+                ) = abi.decode(data[1:], (bytes32, string, uint32, bytes32, MerkleProofInput));
+
+                // console.logBytes32(blobPointer.blockHash);
+                // console.logString(blobPointer.sender);
+                // console.logUint(blobPointer.nonce);
+                // console.logBytes32(blobPointer.dasTreeRootHash);
+
+                // for (uint256 i = 0; i < blobPointer.merkleProofInput.dataRootProof.length; i++) {
+                //     console.logBytes32(blobPointer.merkleProofInput.dataRootProof[i]);
+                // }
+
+                // for (uint256 i = 0; i < blobPointer.merkleProofInput.leafProof.length; i++) {
+                //     console.logBytes32(blobPointer.merkleProofInput.leafProof[i]);
+                // }
+
+                // console.logBytes32(blobPointer.merkleProofInput.rangeHash);
+                // console.logUint(blobPointer.merkleProofInput.dataRootIndex);
+                // console.logBytes32(blobPointer.merkleProofInput.blobRoot);
+                // console.logBytes32(blobPointer.merkleProofInput.bridgeRoot);
+                // console.logBytes32(blobPointer.merkleProofInput.leaf);
+                // console.logUint(blobPointer.merkleProofInput.leafIndex);
+                if (!availBridge.verifyBlobLeaf(blobPointer.merkleProofInput))
+                    revert BatchDataValidationForAvailDAFailed(blobPointer.merkleProofInput.leaf);
+
+                // Not included this event as this function declared as view
+                //emit validateBatchDataOverAvailDA(blobPointer.merkleProofInput);
+            }
         }
         return (keccak256(bytes.concat(header, data)), timeBounds);
     }
@@ -606,15 +629,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     /// @return The data hash
     /// @return The timebounds within which the message should be processed
     /// @return The normalized amount of gas used for blob posting
-    function formBlobDataHash(uint256 afterDelayedMessagesRead)
-        internal
-        view
-        returns (
-            bytes32,
-            IBridge.TimeBounds memory,
-            uint256
-        )
-    {
+    function formBlobDataHash(
+        uint256 afterDelayedMessagesRead
+    ) internal view returns (bytes32, IBridge.TimeBounds memory, uint256) {
         bytes32[] memory dataHashes = reader4844.getDataHashes();
         if (dataHashes.length == 0) revert MissingDataHashes();
 
@@ -679,12 +696,7 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         uint256 newMessageCount
     )
         internal
-        returns (
-            uint256 seqMessageIndex,
-            bytes32 beforeAcc,
-            bytes32 delayedAcc,
-            bytes32 acc
-        )
+        returns (uint256 seqMessageIndex, bytes32 beforeAcc, bytes32 delayedAcc, bytes32 acc)
     {
         if (afterDelayedMessagesRead < totalDelayedMessagesRead) revert DelayedBackwards();
         if (afterDelayedMessagesRead > bridge.delayedMessageCount()) revert DelayedTooFar();
@@ -712,9 +724,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         return bridge.sequencerMessageCount();
     }
 
-    function _setMaxTimeVariation(ISequencerInbox.MaxTimeVariation memory maxTimeVariation_)
-        internal
-    {
+    function _setMaxTimeVariation(
+        ISequencerInbox.MaxTimeVariation memory maxTimeVariation_
+    ) internal {
         if (
             maxTimeVariation_.delayBlocks > type(uint64).max ||
             maxTimeVariation_.futureBlocks > type(uint64).max ||
@@ -730,19 +742,18 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     }
 
     /// @inheritdoc ISequencerInbox
-    function setMaxTimeVariation(ISequencerInbox.MaxTimeVariation memory maxTimeVariation_)
-        external
-        onlyRollupOwner
-    {
+    function setMaxTimeVariation(
+        ISequencerInbox.MaxTimeVariation memory maxTimeVariation_
+    ) external onlyRollupOwner {
         _setMaxTimeVariation(maxTimeVariation_);
         emit OwnerFunctionCalled(0);
     }
 
     /// @inheritdoc ISequencerInbox
-    function setIsBatchPoster(address addr, bool isBatchPoster_)
-        external
-        onlyRollupOwnerOrBatchPosterManager
-    {
+    function setIsBatchPoster(
+        address addr,
+        bool isBatchPoster_
+    ) external onlyRollupOwnerOrBatchPosterManager {
         isBatchPoster[addr] = isBatchPoster_;
         emit OwnerFunctionCalled(1);
     }
@@ -778,10 +789,10 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     }
 
     /// @inheritdoc ISequencerInbox
-    function setIsSequencer(address addr, bool isSequencer_)
-        external
-        onlyRollupOwnerOrBatchPosterManager
-    {
+    function setIsSequencer(
+        address addr,
+        bool isSequencer_
+    ) external onlyRollupOwnerOrBatchPosterManager {
         isSequencer[addr] = isSequencer_;
         emit OwnerFunctionCalled(4); // Owner in this context can also be batch poster manager
     }
