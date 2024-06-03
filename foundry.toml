@@ -17,7 +17,8 @@ remappings = [
 
 [profile.yul]
 
-remappings = []src = 'yul'
+remappings = []
+src = 'yul'
 out = 'out/yul'
 libs = ['node_modules', 'lib']
 cache_path = 'forge-cache/yul'
