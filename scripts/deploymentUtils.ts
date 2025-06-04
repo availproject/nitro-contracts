@@ -61,7 +61,8 @@ export async function deployContract(
   signer: any,
   constructorArgs: any[] = [],
   verify: boolean = true,
-  overrides?: Overrides
+  overrides?: Overrides,
+  contractPathAndName?: string // optional
 ): Promise<Contract> {
   const factory: ContractFactory = await ethers.getContractFactory(contractName)
   const connectedFactory: ContractFactory = factory.connect(signer)
@@ -76,7 +77,7 @@ export async function deployContract(
   console.log(`New ${contractName} created at address:`, contract.address)
 
   if (verify)
-    await verifyContract(contractName, contract.address, constructorArgs)
+    await verifyContract(contractName, contract.address, constructorArgs, contractPathAndName)
 
   return contract
 }
@@ -253,7 +254,7 @@ export async function deployAllContracts(
 async function deployDABridge(bridge: string, signer: any, args: any, verify: boolean = true): Promise<Contract> {
   switch (bridge) {
     case "Avail":
-      return await deployContract("AvailDABridge", signer, args, verify)
+      return await deployContract("AvailDABridge", signer, args, verify, undefined, "src/data-availability/AvailDABridge.sol:AvailDABridge")
     default:
       return Promise.resolve(new ethers.Contract("0x0000000000000000000000000000000000000000", [], ethers.getDefaultProvider()))
   }

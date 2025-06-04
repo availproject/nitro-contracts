@@ -9,7 +9,6 @@ import 'hardhat-contract-sizer'
 import 'hardhat-ignore-warnings'
 // import '@tovarishfin/hardhat-yul';
 import dotenv from 'dotenv'
-import { url } from 'inspector'
 
 dotenv.config()
 
@@ -155,6 +154,12 @@ module.exports = {
       accounts: process.env['DEVNET_PRIVKEY']
         ? [process.env['DEVNET_PRIVKEY']]
         : [],
+    },
+    citrea: {
+      url: 'https://rpc.testnet.citrea.xyz',
+      accounts: process.env['DEVNET_PRIVKEY']
+        ? [process.env['DEVNET_PRIVKEY']]
+        : [],
     }
   },
   etherscan: {
@@ -168,7 +173,8 @@ module.exports = {
       nova: process.env['NOVA_ARBISCAN_API_KEY'],
       arbGoerliRollup: process.env['ARBISCAN_API_KEY'],
       arbSepolia: process.env['ARBISCAN_API_KEY'],
-      baseSepolia: process.env['BASESCAN_API_KEY']
+      baseSepolia: process.env['BASESCAN_API_KEY'],
+      citrea: "no-api-key-needed",
     },
     customChains: [
       {
@@ -200,7 +206,15 @@ module.exports = {
         chainId: 84532,
         urls: {
           apiURL: 'https://api-sepolia.basescan.org/api',
-          browserURL: '	https://sepolia-explorer.base.org',
+          browserURL: 'https://sepolia-explorer.base.org',
+        }
+      },
+      {
+        network: 'citrea',
+        chainId: 5115,
+        urls: {
+          apiURL: 'https://explorer.testnet.citrea.xyz/api',
+          browserURL: 'https://explorer.testnet.citrea.xyz',
         }
       }
     ],
