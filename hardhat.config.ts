@@ -160,6 +160,12 @@ module.exports = {
       accounts: process.env['DEVNET_PRIVKEY']
         ? [process.env['DEVNET_PRIVKEY']]
         : [],
+    },
+    neura: {
+      url: 'https://rpc.ankr.com/neura_testnet',
+      accounts: process.env['DEVNET_PRIVKEY']
+        ? [process.env['DEVNET_PRIVKEY']]
+        : [],
     }
   },
   etherscan: {
@@ -175,6 +181,7 @@ module.exports = {
       arbSepolia: process.env['ARBISCAN_API_KEY'],
       baseSepolia: process.env['BASESCAN_API_KEY'],
       citrea: "no-api-key-needed",
+      neura: "no-api-key-needed",
     },
     customChains: [
       {
@@ -215,6 +222,14 @@ module.exports = {
         urls: {
           apiURL: 'https://explorer.testnet.citrea.xyz/api',
           browserURL: 'https://explorer.testnet.citrea.xyz',
+        }
+      },
+      {
+        network: 'neura',
+        chainId: 267,
+        urls: {
+          apiURL: 'https://testnet-blockscout.infra.neuraprotocol.io/api',
+          browserURL: 'https://testnet-blockscout.infra.neuraprotocol.io',
         }
       }
     ],
