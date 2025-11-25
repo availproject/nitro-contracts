@@ -27,6 +27,7 @@ contract RollupCreator is Ownable {
         address adminProxy,
         address sequencerInbox,
         address bridge,
+        address dabridge,
         address upgradeExecutor,
         address validatorWalletCreator
     );
@@ -143,8 +144,7 @@ contract RollupCreator is Ownable {
                 ,
                 ISequencerInbox ethSequencerInbox,
                 ISequencerInbox ethDelayBufferableSequencerInbox,
-                IInboxBase ethInbox,
-                ,
+                IInboxBase ethInbox,,,
             ) = bridgeCreator.ethBasedTemplates();
             require(
                 deployParams.maxDataSize == ethSequencerInbox.maxDataSize(),
@@ -160,8 +160,7 @@ contract RollupCreator is Ownable {
                 ,
                 ISequencerInbox erc20SequencerInbox,
                 ISequencerInbox erc20DelayBufferableSequencerInbox,
-                IInboxBase erc20Inbox,
-                ,
+                IInboxBase erc20Inbox,,,
             ) = bridgeCreator.erc20BasedTemplates();
             require(
                 deployParams.maxDataSize == erc20SequencerInbox.maxDataSize(),
@@ -255,6 +254,7 @@ contract RollupCreator is Ownable {
             address(proxyAdmin),
             address(bridgeContracts.sequencerInbox),
             address(bridgeContracts.bridge),
+            address(bridgeContracts.dabridge),
             address(upgradeExecutor),
             address(validatorWalletCreator)
         );
@@ -319,8 +319,8 @@ contract RollupCreator is Ownable {
                 uint256 erc1820Cost = _scaleDownToNativeDecimals(
                     l2FactoriesDeployer.ERC1820_VALUE() + gasCost, decimals
                 );
-                totalFeeNativeDenominated =
-                    nickCreate2Cost + erc2470Cost + zoltuCreate2Cost + erc1820Cost;
+                totalFeeNativeDenominated = nickCreate2Cost + erc2470Cost + zoltuCreate2Cost
+                    + erc1820Cost;
             } else if (decimals > 18) {
                 totalFeeNativeDenominated = totalFee * (10 ** (decimals - 18));
             }

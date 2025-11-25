@@ -6,11 +6,13 @@ pragma solidity ^0.8.0;
 
 import "../bridge/SequencerInbox.sol";
 import "../bridge/IEthBridge.sol";
+import "../data-availability/IDABridge.sol";
 import {INITIALIZATION_MSG_TYPE} from "../libraries/MessageTypes.sol";
 
 contract SequencerInboxStub is SequencerInbox {
     constructor(
         IBridge bridge_,
+        IDABridge daBridge_,
         address sequencer_,
         ISequencerInbox.MaxTimeVariation memory maxTimeVariation_,
         uint256 maxDataSize_,
@@ -19,6 +21,7 @@ contract SequencerInboxStub is SequencerInbox {
         bool isDelayBufferable_
     ) SequencerInbox(maxDataSize_, reader4844_, isUsingFeeToken_, isDelayBufferable_) {
         bridge = bridge_;
+        daBridge = daBridge_;
         rollup = IOwnable(msg.sender);
         delayBlocks = uint64(maxTimeVariation_.delayBlocks);
         futureBlocks = uint64(maxTimeVariation_.futureBlocks);

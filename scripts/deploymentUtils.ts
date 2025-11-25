@@ -72,7 +72,8 @@ export async function deployContract(
   signer: any,
   constructorArgs: any[] = [],
   verify: boolean = true,
-  overrides?: Overrides
+  overrides?: Overrides,
+  contractPathAndName?: string // optional
 ): Promise<Contract> {
   const factory: ContractFactory = await ethers.getContractFactory(contractName)
   const connectedFactory: ContractFactory = factory.connect(signer)
@@ -97,7 +98,12 @@ export async function deployContract(
   )
 
   if (verify)
-    await verifyContract(contractName, contract.address, constructorArgs)
+    await verifyContract(
+      contractName,
+      contract.address,
+      constructorArgs,
+      contractPathAndName
+    )
 
   return contract
 }
@@ -110,6 +116,10 @@ export async function deployUpgradeExecutor(signer: any): Promise<Contract> {
   )
   const connectedFactory: ContractFactory = upgradeExecutorFac.connect(signer)
   const upgradeExecutor = await connectedFactory.deploy()
+  console.log(
+    `New upgradeExecutor created at address:`,
+    upgradeExecutor.address
+  )
   return upgradeExecutor
 }
 
@@ -122,6 +132,8 @@ export async function deployAllContracts(
   const isOnArb = await _isRunningOnArbitrum(signer)
 
   const ethBridge = await deployContract('Bridge', signer, [], verify)
+  //Deployment of DA Bridge
+  const daBridge = await deployDABridge('Avail', signer, [], verify)
   const reader4844 = isOnArb
     ? ethers.constants.AddressZero
     : (await Toolkit4844.deployReader4844(signer)).address
@@ -186,6 +198,7 @@ export async function deployAllContracts(
         ethInbox.address,
         ethRollupEventInbox.address,
         ethOutbox.address,
+        daBridge.address,
       ],
       [
         erc20Bridge.address,
@@ -194,6 +207,7 @@ export async function deployAllContracts(
         erc20Inbox.address,
         erc20RollupEventInbox.address,
         erc20Outbox.address,
+        daBridge.address,
       ],
     ],
     verify
@@ -277,6 +291,32 @@ export async function deployAllContracts(
   }
 }
 
+async function deployDABridge(
+  bridge: string,
+  signer: any,
+  args: any,
+  verify: boolean = true
+): Promise<Contract> {
+  switch (bridge) {
+    case 'Avail':
+      return await deployContract(
+        'AvailDABridge',
+        signer,
+        args,
+        verify,
+        undefined,
+        'src/data-availability/AvailDABridge.sol:AvailDABridge'
+      )
+    default:
+      return Promise.resolve(
+        new ethers.Contract(
+          '0x0000000000000000000000000000000000000000',
+          [],
+          ethers.getDefaultProvider()
+        )
+      )
+  }
+}
 export async function deployAndSetCacheManager(
   chainOwnerWallet: Wallet,
   verify: boolean = true

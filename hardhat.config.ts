@@ -209,6 +209,12 @@ module.exports = {
     geth: {
       url: 'http://localhost:8545',
     },
+    citrea: {
+      url: 'https://rpc.testnet.citrea.xyz',
+      accounts: process.env['DEVNET_PRIVKEY']
+        ? [process.env['DEVNET_PRIVKEY']]
+        : [],
+    },
   },
   etherscan: {
     apiKey: {
@@ -221,6 +227,7 @@ module.exports = {
       base: process.env['BASESCAN_API_KEY'],
       baseSepolia: process.env['BASESCAN_API_KEY'],
       custom: process.env['CUSTOM_ETHERSCAN_API_KEY'],
+      citrea: 'no-api-key-needed',
     },
     customChains: [
       {
@@ -245,6 +252,22 @@ module.exports = {
         urls: {
           apiURL: process.env['CUSTOM_ETHERSCAN_API_URL'],
           browserURL: process.env['CUSTOM_ETHERSCAN_BROWSER_URL'],
+        },
+      },
+      {
+        network: 'baseSepolia',
+        chainId: 84532,
+        urls: {
+          apiURL: 'https://api-sepolia.basescan.org/api',
+          browserURL: 'https://sepolia-explorer.base.org',
+        },
+      },
+      {
+        network: 'citrea',
+        chainId: 5115,
+        urls: {
+          apiURL: 'https://explorer.testnet.citrea.xyz/api',
+          browserURL: 'https://explorer.testnet.citrea.xyz',
         },
       },
     ],

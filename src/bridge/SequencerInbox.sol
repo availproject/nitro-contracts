@@ -35,7 +35,8 @@ import {
     DelayProofRequired,
     BadBufferConfig,
     ExtraGasNotUint64,
-    KeysetTooLarge
+    KeysetTooLarge,
+    BadDABatchAttestation
 } from "../libraries/Error.sol";
 import "./IBridge.sol";
 import "./IInboxBase.sol";
@@ -46,13 +47,13 @@ import "../precompiles/ArbGasInfo.sol";
 import "../precompiles/ArbSys.sol";
 import "../libraries/CallerChecker.sol";
 import "../libraries/IReader4844.sol";
-
 import "../libraries/DelegateCallAware.sol";
 import {IGasRefunder} from "../libraries/IGasRefunder.sol";
 import {GasRefundEnabled} from "../libraries/GasRefundEnabled.sol";
 import "../libraries/ArbitrumChecker.sol";
 import {IERC20Bridge} from "./IERC20Bridge.sol";
 import "./DelayBuffer.sol";
+import "../data-availability/IDABridge.sol";
 
 /**
  * @title  Accepts batches from the sequencer and adds them to the rollup inbox.
@@ -67,6 +68,8 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     uint256 public totalDelayedMessagesRead;
 
     IBridge public bridge;
+
+    IDABridge public daBridge;
 
     /// @inheritdoc ISequencerInbox
     uint256 public constant HEADER_LENGTH = 40;
@@ -103,7 +106,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     mapping(bytes32 => DasKeySetInfo) public dasKeySetInfo;
 
     modifier onlyRollupOwner() {
-        if (msg.sender != rollup.owner()) revert NotOwner(msg.sender, rollup.owner());
+        if (msg.sender != rollup.owner()) {
+            revert NotOwner(msg.sender, rollup.owner());
+        }
         _;
     }
 
@@ -149,9 +154,13 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     ) {
         maxDataSize = _maxDataSize;
         if (hostChainIsArbitrum) {
-            if (reader4844_ != IReader4844(address(0))) revert DataBlobsNotSupported();
+            if (reader4844_ != IReader4844(address(0))) {
+                revert DataBlobsNotSupported();
+            }
         } else {
-            if (reader4844_ == IReader4844(address(0))) revert InitParamZero("Reader4844");
+            if (reader4844_ == IReader4844(address(0))) {
+                revert InitParamZero("Reader4844");
+            }
         }
         reader4844 = reader4844_;
         isUsingFeeToken = _isUsingFeeToken;
@@ -180,7 +189,8 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         IBridge bridge_,
         ISequencerInbox.MaxTimeVariation calldata maxTimeVariation_,
         BufferConfig memory bufferConfig_,
-        IFeeTokenPricer feeTokenPricer_
+        IFeeTokenPricer feeTokenPricer_,
+        IDABridge daBridge_
     ) external onlyDelegated {
         if (bridge != IBridge(address(0))) revert AlreadyInit();
         if (bridge_ == IBridge(address(0))) revert HadZeroInit();
@@ -210,6 +220,13 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
             revert CannotSetFeeTokenPricer();
         }
         feeTokenPricer = feeTokenPricer_;
+
+        //initialise DA bridge for DA attestation verification
+        if (daBridge != IDABridge(address(0))) revert AlreadyInit();
+
+        // Can be zero if there is no da bridge requirement
+        // if (daBridge_ == IDABridge(address(0))) revert HadZeroInit();
+        daBridge = daBridge_;
     }
 
     /// @notice Allows the rollup owner to sync the rollup address
@@ -275,7 +292,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         address sender,
         bytes32 messageDataHash
     ) external {
-        if (_totalDelayedMessagesRead <= totalDelayedMessagesRead) revert DelayedBackwards();
+        if (_totalDelayedMessagesRead <= totalDelayedMessagesRead) {
+            revert DelayedBackwards();
+        }
         bytes32 messageHash = Messages.messageHash(
             kind,
             sender,
@@ -294,7 +313,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
             delayBlocks_ = delayBufferableBlocks(buffer.bufferBlocks);
         }
         // Can only force-include after the Sequencer-only window has expired.
-        if (l1BlockAndTime[0] + delayBlocks_ >= block.number) revert ForceIncludeBlockTooSoon();
+        if (l1BlockAndTime[0] + delayBlocks_ >= block.number) {
+            revert ForceIncludeBlockTooSoon();
+        }
 
         // Verify that message hash represents the last message sequence of delayed message to be included
         bytes32 prevDelayedAcc = 0;
@@ -311,8 +332,7 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         uint256 __totalDelayedMessagesRead = _totalDelayedMessagesRead;
         uint256 prevSeqMsgCount = bridge.sequencerReportedSubMessageCount();
         uint256 newSeqMsgCount = prevSeqMsgCount; // force inclusion should not modify sequencer message count
-        (uint256 seqMessageIndex, bytes32 beforeAcc, bytes32 delayedAcc, bytes32 afterAcc) =
-        addSequencerL2BatchImpl(
+        (uint256 seqMessageIndex, bytes32 beforeAcc, bytes32 delayedAcc, bytes32 afterAcc) = addSequencerL2BatchImpl(
             dataHash, __totalDelayedMessagesRead, 0, prevSeqMsgCount, newSeqMsgCount
         );
         emit SequencerBatchDelivered(
@@ -347,7 +367,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     ) external refundsGas(gasRefunder, IReader4844(address(0))) {
         if (!CallerChecker.isCallerCodelessOrigin()) revert NotCodelessOrigin();
         if (!isBatchPoster[msg.sender]) revert NotBatchPoster();
-        if (isDelayProofRequired(afterDelayedMessagesRead)) revert DelayProofRequired();
+        if (isDelayProofRequired(afterDelayedMessagesRead)) {
+            revert DelayProofRequired();
+        }
 
         addSequencerL2BatchFromCalldataImpl(
             sequenceNumber, data, afterDelayedMessagesRead, prevMessageCount, newMessageCount, true
@@ -363,7 +385,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         uint256 newMessageCount
     ) external refundsGas(gasRefunder, reader4844) {
         if (!isBatchPoster[msg.sender]) revert NotBatchPoster();
-        if (isDelayProofRequired(afterDelayedMessagesRead)) revert DelayProofRequired();
+        if (isDelayProofRequired(afterDelayedMessagesRead)) {
+            revert DelayProofRequired();
+        }
 
         addSequencerL2BatchFromBlobsImpl(
             sequenceNumber, afterDelayedMessagesRead, prevMessageCount, newMessageCount
@@ -420,8 +444,7 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         // we use addSequencerL2BatchImpl for submitting the message
         // normally this would also submit a batch spending report but that is skipped if we pass
         // an empty call data size, then we submit a separate batch spending report later
-        (uint256 seqMessageIndex, bytes32 beforeAcc, bytes32 delayedAcc, bytes32 afterAcc) =
-        addSequencerL2BatchImpl(
+        (uint256 seqMessageIndex, bytes32 beforeAcc, bytes32 delayedAcc, bytes32 afterAcc) = addSequencerL2BatchImpl(
             dataHash, afterDelayedMessagesRead, 0, prevMessageCount, newMessageCount
         );
 
@@ -463,8 +486,7 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     ) internal {
         (bytes32 dataHash, IBridge.TimeBounds memory timeBounds) =
             formCallDataHash(data, afterDelayedMessagesRead);
-        (uint256 seqMessageIndex, bytes32 beforeAcc, bytes32 delayedAcc, bytes32 afterAcc) =
-        addSequencerL2BatchImpl(
+        (uint256 seqMessageIndex, bytes32 beforeAcc, bytes32 delayedAcc, bytes32 afterAcc) = addSequencerL2BatchImpl(
             dataHash,
             afterDelayedMessagesRead,
             isFromCodelessOrigin ? data.length : 0,
@@ -503,8 +525,12 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         uint256 prevMessageCount,
         uint256 newMessageCount
     ) external override refundsGas(gasRefunder, IReader4844(address(0))) {
-        if (!isBatchPoster[msg.sender] && msg.sender != address(rollup)) revert NotBatchPoster();
-        if (isDelayProofRequired(afterDelayedMessagesRead)) revert DelayProofRequired();
+        if (!isBatchPoster[msg.sender] && msg.sender != address(rollup)) {
+            revert NotBatchPoster();
+        }
+        if (isDelayProofRequired(afterDelayedMessagesRead)) {
+            revert DelayProofRequired();
+        }
 
         addSequencerL2BatchFromCalldataImpl(
             sequenceNumber, data, afterDelayedMessagesRead, prevMessageCount, newMessageCount, false
@@ -521,7 +547,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         uint256 newMessageCount,
         DelayProof calldata delayProof
     ) external refundsGas(gasRefunder, IReader4844(address(0))) {
-        if (!isBatchPoster[msg.sender] && msg.sender != address(rollup)) revert NotBatchPoster();
+        if (!isBatchPoster[msg.sender] && msg.sender != address(rollup)) {
+            revert NotBatchPoster();
+        }
         if (!isDelayBufferable) revert NotDelayBufferable();
 
         delayProofImpl(afterDelayedMessagesRead, delayProof);
@@ -540,11 +568,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
                 // delayedAcc of the 1st new delayed message
                 bytes32 delayedAcc = bridge.delayedInboxAccs(totalDelayedMessagesRead);
                 // validate delayProof against the delayed accumulator
-                if (
-                    !Messages.isValidDelayedAccPreimage(
+                if (!Messages.isValidDelayedAccPreimage(
                         delayedAcc, delayProof.beforeDelayedAcc, delayProof.delayedMessage
-                    )
-                ) {
+                    )) {
                     revert InvalidDelayedAccPreimage();
                 }
                 buffer.update(delayProof.delayedMessage.blockNumber);
@@ -596,10 +622,11 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
     /// @param  headerByte The first byte in the calldata
     function isValidCallDataFlag(
         bytes1 headerByte
-    ) internal pure returns (bool) {
+    ) internal view returns (bool) {
         return headerByte == BROTLI_MESSAGE_HEADER_FLAG || headerByte == DAS_MESSAGE_HEADER_FLAG
             || (headerByte == (DAS_MESSAGE_HEADER_FLAG | TREE_DAS_MESSAGE_HEADER_FLAG))
-            || headerByte == ZERO_HEAVY_MESSAGE_HEADER_FLAG;
+            || headerByte == ZERO_HEAVY_MESSAGE_HEADER_FLAG
+            || headerByte == daBridge.DA_MESSAGE_HEADER_FLAG();
     }
 
     /// @dev    Form a hash of the data taken from the calldata
@@ -612,7 +639,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         uint256 afterDelayedMessagesRead
     ) internal view returns (bytes32, IBridge.TimeBounds memory) {
         uint256 fullDataLen = HEADER_LENGTH + data.length;
-        if (fullDataLen > maxDataSize) revert DataTooLarge(fullDataLen, maxDataSize);
+        if (fullDataLen > maxDataSize) {
+            revert DataTooLarge(fullDataLen, maxDataSize);
+        }
 
         (bytes memory header, IBridge.TimeBounds memory timeBounds) =
             packHeader(afterDelayedMessagesRead);
@@ -631,7 +660,13 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
             if (data[0] & DAS_MESSAGE_HEADER_FLAG != 0 && data.length >= 33) {
                 // we skip the first byte, then read the next 32 bytes for the keyset
                 bytes32 dasKeysetHash = bytes32(data[1:33]);
-                if (!dasKeySetInfo[dasKeysetHash].isValidKeyset) revert NoSuchKeyset(dasKeysetHash);
+                if (!dasKeySetInfo[dasKeysetHash].isValidKeyset) {
+                    revert NoSuchKeyset(dasKeysetHash);
+                }
+            } else if (data[0] & daBridge.DA_MESSAGE_HEADER_FLAG() != 0 && data.length >= 100) {
+                if (daBridge.verifyBatchAttestation(data)) {
+                    revert BadDABatchAttestation(data[0]);
+                }
             }
         }
         return (keccak256(bytes.concat(header, data)), timeBounds);
@@ -719,8 +754,12 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         internal
         returns (uint256 seqMessageIndex, bytes32 beforeAcc, bytes32 delayedAcc, bytes32 acc)
     {
-        if (afterDelayedMessagesRead < totalDelayedMessagesRead) revert DelayedBackwards();
-        if (afterDelayedMessagesRead > bridge.delayedMessageCount()) revert DelayedTooFar();
+        if (afterDelayedMessagesRead < totalDelayedMessagesRead) {
+            revert DelayedBackwards();
+        }
+        if (afterDelayedMessagesRead > bridge.delayedMessageCount()) {
+            revert DelayedTooFar();
+        }
 
         (seqMessageIndex, beforeAcc, delayedAcc, acc) = bridge.enqueueSequencerMessage(
             dataHash, afterDelayedMessagesRead, prevMessageCount, newMessageCount
@@ -766,7 +805,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         BufferConfig memory bufferConfig_
     ) internal {
         if (!isDelayBufferable) revert NotDelayBufferable();
-        if (!DelayBuffer.isValidBufferConfig(bufferConfig_)) revert BadBufferConfig();
+        if (!DelayBuffer.isValidBufferConfig(bufferConfig_)) {
+            revert BadBufferConfig();
+        }
 
         if (buffer.bufferBlocks == 0 || buffer.bufferBlocks > bufferConfig_.max) {
             buffer.bufferBlocks = bufferConfig_.max;
@@ -828,7 +869,9 @@ contract SequencerInbox is DelegateCallAware, GasRefundEnabled, ISequencerInbox 
         bytes32 ksHash = bytes32(ksWord ^ (1 << 255));
         if (keysetBytes.length >= 64 * 1024) revert KeysetTooLarge();
 
-        if (dasKeySetInfo[ksHash].isValidKeyset) revert AlreadyValidDASKeyset(ksHash);
+        if (dasKeySetInfo[ksHash].isValidKeyset) {
+            revert AlreadyValidDASKeyset(ksHash);
+        }
         uint256 creationBlock = block.number;
         if (hostChainIsArbitrum) {
             creationBlock = ArbSys(address(100)).arbBlockNumber();

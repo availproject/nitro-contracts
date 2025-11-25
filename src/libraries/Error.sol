@@ -194,6 +194,9 @@ error MissingDataHashes();
 /// @dev Thrown when rollup is not updated with updateRollupAddress
 error RollupNotChanged();
 
+/// @dev Thrown when batch attestation veficication got failed over DA bridge
+error BadDABatchAttestation(bytes1);
+
 /// @dev Unsupported header flag was provided
 error InvalidHeaderFlag(bytes1);
 

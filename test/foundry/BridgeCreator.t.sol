@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import "forge-std/Test.sol";
 import "./util/TestUtil.sol";
 import "../../src/rollup/BridgeCreator.sol";
+import "../../src/data-availability/AvailDABridge.sol";
 import "../../src/bridge/ISequencerInbox.sol";
 import "../../src/bridge/AbsInbox.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -18,18 +19,24 @@ contract BridgeCreatorTest is Test {
     BridgeCreator.BridgeTemplates ethBasedTemplates = BridgeCreator.BridgeTemplates({
         bridge: new Bridge(),
         sequencerInbox: new SequencerInbox(MAX_DATA_SIZE, dummyReader4844, false, false),
-        delayBufferableSequencerInbox: new SequencerInbox(MAX_DATA_SIZE, dummyReader4844, false, true),
+        delayBufferableSequencerInbox: new SequencerInbox(
+            MAX_DATA_SIZE, dummyReader4844, false, true
+        ),
         inbox: new Inbox(MAX_DATA_SIZE),
         rollupEventInbox: new RollupEventInbox(),
-        outbox: new Outbox()
+        outbox: new Outbox(),
+        dabridge: new AvailDABridge()
     });
     BridgeCreator.BridgeTemplates erc20BasedTemplates = BridgeCreator.BridgeTemplates({
         bridge: new ERC20Bridge(),
         sequencerInbox: new SequencerInbox(MAX_DATA_SIZE, dummyReader4844, true, false),
-        delayBufferableSequencerInbox: new SequencerInbox(MAX_DATA_SIZE, dummyReader4844, true, true),
+        delayBufferableSequencerInbox: new SequencerInbox(
+            MAX_DATA_SIZE, dummyReader4844, true, true
+        ),
         inbox: new ERC20Inbox(MAX_DATA_SIZE),
         rollupEventInbox: new ERC20RollupEventInbox(),
-        outbox: new ERC20Outbox()
+        outbox: new ERC20Outbox(),
+        dabridge: new AvailDABridge()
     });
 
     function setUp() public {
@@ -40,30 +47,28 @@ contract BridgeCreatorTest is Test {
     function getEthBasedTemplates() internal view returns (BridgeCreator.BridgeTemplates memory) {
         BridgeCreator.BridgeTemplates memory templates;
         (
-            templates.bridge,
-            templates.sequencerInbox,
-            templates.delayBufferableSequencerInbox,
-            templates.inbox,
-            templates.rollupEventInbox,
-            templates.outbox
-        ) = creator.ethBasedTemplates();
+                templates.bridge,
+                templates.sequencerInbox,
+                templates.delayBufferableSequencerInbox,
+                templates.inbox,
+                templates.rollupEventInbox,
+                templates.outbox,
+                templates.dabridge
+            ) = creator.ethBasedTemplates();
         return templates;
     }
 
-    function getErc20BasedTemplates()
-        internal
-        view
-        returns (BridgeCreator.BridgeTemplates memory)
-    {
+    function getErc20BasedTemplates() internal view returns (BridgeCreator.BridgeTemplates memory) {
         BridgeCreator.BridgeTemplates memory templates;
         (
-            templates.bridge,
-            templates.sequencerInbox,
-            templates.delayBufferableSequencerInbox,
-            templates.inbox,
-            templates.rollupEventInbox,
-            templates.outbox
-        ) = creator.erc20BasedTemplates();
+                templates.bridge,
+                templates.sequencerInbox,
+                templates.delayBufferableSequencerInbox,
+                templates.inbox,
+                templates.rollupEventInbox,
+                templates.outbox,
+                templates.dabridge
+            ) = creator.erc20BasedTemplates();
         return templates;
     }
 
@@ -98,7 +103,8 @@ contract BridgeCreatorTest is Test {
             delayBufferableSequencerInbox: SequencerInbox(address(202)),
             inbox: Inbox(address(203)),
             rollupEventInbox: RollupEventInbox(address(204)),
-            outbox: Outbox(address(205))
+            outbox: Outbox(address(205)),
+            dabridge: AvailDABridge(address(206))
         });
 
         vm.prank(owner);
@@ -114,7 +120,8 @@ contract BridgeCreatorTest is Test {
             delayBufferableSequencerInbox: SequencerInbox(address(402)),
             inbox: ERC20Inbox(address(403)),
             rollupEventInbox: ERC20RollupEventInbox(address(404)),
-            outbox: ERC20Outbox(address(405))
+            outbox: ERC20Outbox(address(405)),
+            dabridge: AvailDABridge(address(406))
         });
 
         vm.prank(owner);
@@ -130,9 +137,7 @@ contract BridgeCreatorTest is Test {
         ISequencerInbox.MaxTimeVariation memory timeVars =
             ISequencerInbox.MaxTimeVariation(10, 20, 30, 40);
         BufferConfig memory bufferConfig = BufferConfig({
-            threshold: type(uint64).max,
-            max: type(uint64).max,
-            replenishRateInBasis: 0
+            threshold: type(uint64).max, max: type(uint64).max, replenishRateInBasis: 0
         });
 
         BridgeCreator.BridgeContracts memory contracts = creator.createBridge(
@@ -159,8 +164,12 @@ contract BridgeCreatorTest is Test {
         // seqInbox
         assertEq(address(seqInbox.bridge()), address(bridge), "Invalid bridge ref");
         assertEq(address(seqInbox.rollup()), rollup, "Invalid rollup ref");
-        (uint256 _delayBlocks, uint256 _futureBlocks, uint256 _delaySeconds, uint256 _futureSeconds)
-        = seqInbox.maxTimeVariation();
+        (
+            uint256 _delayBlocks,
+            uint256 _futureBlocks,
+            uint256 _delaySeconds,
+            uint256 _futureSeconds
+        ) = seqInbox.maxTimeVariation();
         assertEq(_delayBlocks, timeVars.delayBlocks, "Invalid delayBlocks");
         assertEq(_futureBlocks, timeVars.futureBlocks, "Invalid futureBlocks");
         assertEq(_delaySeconds, timeVars.delaySeconds, "Invalid delaySeconds");
@@ -194,9 +203,7 @@ contract BridgeCreatorTest is Test {
             ISequencerInbox.MaxTimeVariation(10, 20, 30, 40);
         address feeTokenPricer = makeAddr("feeTokenPricer");
         BufferConfig memory bufferConfig = BufferConfig({
-            threshold: type(uint64).max,
-            max: type(uint64).max,
-            replenishRateInBasis: 0
+            threshold: type(uint64).max, max: type(uint64).max, replenishRateInBasis: 0
         });
 
         BridgeCreator.BridgeContracts memory contracts = creator.createBridge(
@@ -222,8 +229,12 @@ contract BridgeCreatorTest is Test {
         // seqInbox
         assertEq(address(contracts.sequencerInbox.bridge()), address(bridge), "Invalid bridge ref");
         assertEq(address(contracts.sequencerInbox.rollup()), rollup, "Invalid rollup ref");
-        (uint256 _delayBlocks, uint256 _futureBlocks, uint256 _delaySeconds, uint256 _futureSeconds)
-        = contracts.sequencerInbox.maxTimeVariation();
+        (
+            uint256 _delayBlocks,
+            uint256 _futureBlocks,
+            uint256 _delaySeconds,
+            uint256 _futureSeconds
+        ) = contracts.sequencerInbox.maxTimeVariation();
         assertEq(_delayBlocks, timeVars.delayBlocks, "Invalid delayBlocks");
         assertEq(_futureBlocks, timeVars.futureBlocks, "Invalid futureBlocks");
         assertEq(_delaySeconds, timeVars.delaySeconds, "Invalid delaySeconds");
@@ -261,9 +272,7 @@ contract BridgeCreatorTest is Test {
         ISequencerInbox.MaxTimeVariation memory timeVars =
             ISequencerInbox.MaxTimeVariation(10, 20, 30, 40);
         BufferConfig memory bufferConfig = BufferConfig({
-            threshold: type(uint64).max,
-            max: type(uint64).max,
-            replenishRateInBasis: 0
+            threshold: type(uint64).max, max: type(uint64).max, replenishRateInBasis: 0
         });
 
         creator.createBridge(
