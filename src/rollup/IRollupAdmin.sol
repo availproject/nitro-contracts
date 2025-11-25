@@ -91,7 +91,10 @@ interface IRollupAdmin {
      * @param _inbox Inbox contract to add or remove
      * @param _enabled New status of inbox
      */
-    function setDelayedInbox(address _inbox, bool _enabled) external;
+    function setDelayedInbox(
+        address _inbox,
+        bool _enabled
+    ) external;
 
     /**
      * @notice Pause interaction with the rollup contract
@@ -110,7 +113,10 @@ interface IRollupAdmin {
      * @param _validator addresses to set in the whitelist
      * @param _val value to set in the whitelist for corresponding address
      */
-    function setValidator(address[] memory _validator, bool[] memory _val) external;
+    function setValidator(
+        address[] memory _validator,
+        bool[] memory _val
+    ) external;
 
     /**
      * @notice Set a new owner address for the rollup proxy

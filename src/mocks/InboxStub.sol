@@ -38,7 +38,10 @@ contract InboxStub is IInboxBase, IInbox {
         revert("NOT IMPLEMENTED");
     }
 
-    function initialize(IBridge _bridge, ISequencerInbox) external {
+    function initialize(
+        IBridge _bridge,
+        ISequencerInbox
+    ) external {
         require(address(bridge) == address(0), "ALREADY_INIT");
         bridge = _bridge;
     }
@@ -76,9 +79,8 @@ contract InboxStub is IInboxBase, IInbox {
         address sender,
         bytes32 messageDataHash
     ) internal returns (uint256) {
-        return IEthBridge(address(bridge)).enqueueDelayedMessage{value: msg.value}(
-            kind, sender, messageDataHash
-        );
+        return IEthBridge(address(bridge))
+        .enqueueDelayedMessage{value: msg.value}(kind, sender, messageDataHash);
     }
 
     function sendUnsignedTransaction(
@@ -193,7 +195,10 @@ contract InboxStub is IInboxBase, IInbox {
         revert("NOT_IMPLEMENTED");
     }
 
-    function setAllowList(address[] memory, bool[] memory) external pure {
+    function setAllowList(
+        address[] memory,
+        bool[] memory
+    ) external pure {
         revert("NOT_IMPLEMENTED");
     }
 

@@ -155,7 +155,9 @@ contract InboxTest is AbsInboxTest {
 
         // create retryable -> tx.origin == msg.sender
         vm.prank(user, user);
-        ethInbox.createRetryableTicket{value: ethToSend}({
+        ethInbox.createRetryableTicket{
+            value: ethToSend
+        }({
             to: address(user),
             l2CallValue: l2CallValue,
             maxSubmissionCost: maxSubmissionCost,
@@ -219,7 +221,9 @@ contract InboxTest is AbsInboxTest {
 
         // create retryable
         vm.prank(sender);
-        ethInbox.createRetryableTicket{value: ethToSend}({
+        ethInbox.createRetryableTicket{
+            value: ethToSend
+        }({
             to: sender,
             l2CallValue: l2CallValue,
             maxSubmissionCost: maxSubmissionCost,
@@ -299,7 +303,9 @@ contract InboxTest is AbsInboxTest {
                 tooSmallEthAmount
             )
         );
-        ethInbox.createRetryableTicket{value: tooSmallEthAmount}({
+        ethInbox.createRetryableTicket{
+            value: tooSmallEthAmount
+        }({
             to: user,
             l2CallValue: l2CallValue,
             maxSubmissionCost: maxSubmissionCost,
@@ -336,7 +342,9 @@ contract InboxTest is AbsInboxTest {
                 data
             )
         );
-        ethInbox.createRetryableTicket{value: msgValue}({
+        ethInbox.createRetryableTicket{
+            value: msgValue
+        }({
             to: user,
             l2CallValue: l2CallValue,
             maxSubmissionCost: maxSubmissionCost,
@@ -367,7 +375,9 @@ contract InboxTest is AbsInboxTest {
                 data
             )
         );
-        ethInbox.createRetryableTicket{value: msgValue}({
+        ethInbox.createRetryableTicket{
+            value: msgValue
+        }({
             to: user,
             l2CallValue: l2CallValue,
             maxSubmissionCost: maxSubmissionCost,
@@ -385,7 +395,9 @@ contract InboxTest is AbsInboxTest {
         vm.deal(user, uint256(type(uint64).max) * 3);
         vm.prank(user, user);
         vm.expectRevert(GasLimitTooLarge.selector);
-        ethInbox.createRetryableTicket{value: uint256(type(uint64).max) * 3}({
+        ethInbox.createRetryableTicket{
+            value: uint256(type(uint64).max) * 3
+        }({
             to: user,
             l2CallValue: 100,
             maxSubmissionCost: 0,
@@ -412,7 +424,9 @@ contract InboxTest is AbsInboxTest {
                 InsufficientSubmissionCost.selector, submissionFee, tooSmallMaxSubmissionCost
             )
         );
-        ethInbox.createRetryableTicket{value: 1 ether}({
+        ethInbox.createRetryableTicket{
+            value: 1 ether
+        }({
             to: user,
             l2CallValue: 100,
             maxSubmissionCost: tooSmallMaxSubmissionCost,
@@ -457,7 +471,9 @@ contract InboxTest is AbsInboxTest {
 
         // create retryable -> tx.origin == msg.sender
         vm.prank(user, user);
-        ethInbox.unsafeCreateRetryableTicket{value: ethToSend}({
+        ethInbox.unsafeCreateRetryableTicket{
+            value: ethToSend
+        }({
             to: address(user),
             l2CallValue: l2CallValue,
             maxSubmissionCost: maxSubmissionCost,
@@ -520,7 +536,9 @@ contract InboxTest is AbsInboxTest {
 
         // create retryable
         vm.prank(sender);
-        ethInbox.unsafeCreateRetryableTicket{value: ethToSend}({
+        ethInbox.unsafeCreateRetryableTicket{
+            value: ethToSend
+        }({
             to: sender,
             l2CallValue: l2CallValue,
             maxSubmissionCost: maxSubmissionCost,
@@ -579,7 +597,9 @@ contract InboxTest is AbsInboxTest {
         );
 
         vm.prank(user, user);
-        ethInbox.unsafeCreateRetryableTicket{value: tooSmallEthAmount}({
+        ethInbox.unsafeCreateRetryableTicket{
+            value: tooSmallEthAmount
+        }({
             to: user,
             l2CallValue: l2CallValue,
             maxSubmissionCost: maxSubmissionCost,

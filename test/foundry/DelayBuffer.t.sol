@@ -20,9 +20,7 @@ contract DelayBufferableTest is Test {
         futureSeconds: 32 * 2 * 12
     });
     BufferConfig configBufferable = BufferConfig({
-        threshold: 60 * 60 * 2 / 12,
-        max: 24 * 60 * 60 / 12 * 2,
-        replenishRateInBasis: 714
+        threshold: 60 * 60 * 2 / 12, max: 24 * 60 * 60 / 12 * 2, replenishRateInBasis: 714
     });
 
     using DelayBuffer for BufferData;
@@ -179,7 +177,8 @@ contract DelayBufferableTest is Test {
 
         vm.roll(elapse);
 
-        uint256 bufferCalc = uint256(delayBuffer.bufferBlocks)
+        uint256 bufferCalc =
+            uint256(delayBuffer.bufferBlocks)
             + (uint256(elapse) * uint256(_config.replenishRateInBasis)) / 10000;
         uint256 decrement = elapse > _config.threshold ? elapse - _config.threshold : 0;
 

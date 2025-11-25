@@ -16,7 +16,10 @@ contract FactoryDeployerHelper {
         deploy(inbox, MAX_FEE_PER_GAS);
     }
 
-    function deploy(address inbox, uint256 maxFeePerGas) public {
+    function deploy(
+        address inbox,
+        uint256 maxFeePerGas
+    ) public {
         address bridge = address(IInboxBase(inbox).bridge());
         address feeToken = IERC20Bridge(bridge).nativeToken();
 
@@ -27,7 +30,11 @@ contract FactoryDeployerHelper {
 }
 
 interface IERC20 {
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
+    function transferFrom(
+        address from,
+        address to,
+        uint256 value
+    ) external returns (bool);
 }
 
 interface IDeployHelper {

@@ -186,7 +186,10 @@ contract BridgeTester is Initializable, DelegateCallAware, IBridge, IEthBridge {
         emit BridgeCallTriggered(msg.sender, to, value, data);
     }
 
-    function setDelayedInbox(address inbox, bool enabled) external override onlyRollupOrOwner {
+    function setDelayedInbox(
+        address inbox,
+        bool enabled
+    ) external override onlyRollupOrOwner {
         InOutInfo storage info = allowedInboxesMap[inbox];
         bool alreadyEnabled = info.allowed;
         emit InboxToggle(inbox, enabled);
@@ -197,15 +200,19 @@ contract BridgeTester is Initializable, DelegateCallAware, IBridge, IEthBridge {
             allowedInboxesMap[inbox] = InOutInfo(allowedDelayedInboxList.length, true);
             allowedDelayedInboxList.push(inbox);
         } else {
-            allowedDelayedInboxList[info.index] =
-                allowedDelayedInboxList[allowedDelayedInboxList.length - 1];
+            allowedDelayedInboxList[info.index] = allowedDelayedInboxList[
+                allowedDelayedInboxList.length - 1
+            ];
             allowedInboxesMap[allowedDelayedInboxList[info.index]].index = info.index;
             allowedDelayedInboxList.pop();
             delete allowedInboxesMap[inbox];
         }
     }
 
-    function setOutbox(address outbox, bool enabled) external override onlyRollupOrOwner {
+    function setOutbox(
+        address outbox,
+        bool enabled
+    ) external override onlyRollupOrOwner {
         InOutInfo storage info = allowedOutboxesMap[outbox];
         bool alreadyEnabled = info.allowed;
         emit OutboxToggle(outbox, enabled);

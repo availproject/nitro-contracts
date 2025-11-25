@@ -161,9 +161,8 @@ contract ERC20BridgeTest is AbsBridgeTest {
         // enqueue msg
         hoax(inbox);
         vm.expectRevert();
-        IEthBridge(address(bridge)).enqueueDelayedMessage{value: 0.1 ether}(
-            kind, user, messageDataHash
-        );
+        IEthBridge(address(bridge))
+        .enqueueDelayedMessage{value: 0.1 ether}(kind, user, messageDataHash);
     }
 
     function test_enqueueDelayedMessage_revert_NotDelayedInbox() public {
@@ -406,14 +405,20 @@ contract MockBridgedToken is ERC20 {
         _mint(msg.sender, 1_000_000 ether);
     }
 
-    function bridgeBurn(address account, uint256 amount) external {
+    function bridgeBurn(
+        address account,
+        uint256 amount
+    ) external {
         require(msg.sender == gateway, "ONLY_GATEWAY");
         _burn(account, amount);
     }
 }
 
 contract MockGateway {
-    function withdraw(MockBridgedToken token, uint256 amount) external {
+    function withdraw(
+        MockBridgedToken token,
+        uint256 amount
+    ) external {
         token.bridgeBurn(msg.sender, amount);
     }
 }
@@ -426,7 +431,10 @@ contract ERC20_6Decimals is ERC20 {
         return 6;
     }
 
-    function mint(address to, uint256 amount) public virtual {
+    function mint(
+        address to,
+        uint256 amount
+    ) public virtual {
         _mint(to, amount);
     }
 }
@@ -439,7 +447,10 @@ contract ERC20_20Decimals is ERC20 {
         return 20;
     }
 
-    function mint(address to, uint256 amount) public virtual {
+    function mint(
+        address to,
+        uint256 amount
+    ) public virtual {
         _mint(to, amount);
     }
 }
@@ -452,7 +463,10 @@ contract ERC20_37Decimals is ERC20 {
         return 37;
     }
 
-    function mint(address to, uint256 amount) public virtual {
+    function mint(
+        address to,
+        uint256 amount
+    ) public virtual {
         _mint(to, amount);
     }
 }
@@ -465,7 +479,10 @@ contract ERC20_36Decimals is ERC20 {
         return 36;
     }
 
-    function mint(address to, uint256 amount) public virtual {
+    function mint(
+        address to,
+        uint256 amount
+    ) public virtual {
         _mint(to, amount);
     }
 }
@@ -477,7 +494,10 @@ contract ERC20NoDecimals is ERC20 {
         revert("not supported");
     }
 
-    function mint(address to, uint256 amount) public virtual {
+    function mint(
+        address to,
+        uint256 amount
+    ) public virtual {
         _mint(to, amount);
     }
 }

@@ -182,7 +182,7 @@ library MerkleTreeAccumulatorLib {
         // if by appending the sub tree we increase the numbe of most sig bits of the size, that means
         // we'll need more space in the expansion to describe the tree, so we enlarge by one
         bytes32[] memory next = UintUtilsLib.mostSignificantBit(postSize)
-            > UintUtilsLib.mostSignificantBit(meSize)
+                > UintUtilsLib.mostSignificantBit(meSize)
             ? new bytes32[](me.length + 1)
             : new bytes32[](me.length);
 

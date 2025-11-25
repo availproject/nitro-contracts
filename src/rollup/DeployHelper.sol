@@ -69,19 +69,23 @@ contract DeployHelper {
                 feeAmountNativeDenominated = feeAmount * (10 ** (decimals - 18));
             }
 
-            IERC20Inbox(inbox).createRetryableTicket({
-                to: _l2Address,
-                l2CallValue: _value,
-                maxSubmissionCost: submissionCost,
-                excessFeeRefundAddress: msg.sender,
-                callValueRefundAddress: msg.sender,
-                gasLimit: GASLIMIT,
-                maxFeePerGas: maxFeePerGas,
-                tokenTotalFeeAmount: feeAmountNativeDenominated,
-                data: ""
-            });
+            IERC20Inbox(inbox)
+                .createRetryableTicket({
+                    to: _l2Address,
+                    l2CallValue: _value,
+                    maxSubmissionCost: submissionCost,
+                    excessFeeRefundAddress: msg.sender,
+                    callValueRefundAddress: msg.sender,
+                    gasLimit: GASLIMIT,
+                    maxFeePerGas: maxFeePerGas,
+                    tokenTotalFeeAmount: feeAmountNativeDenominated,
+                    data: ""
+                });
         } else {
-            IInbox(inbox).createRetryableTicket{value: feeAmount}({
+            IInbox(inbox)
+            .createRetryableTicket{
+                value: feeAmount
+            }({
                 to: _l2Address,
                 l2CallValue: _value,
                 maxSubmissionCost: submissionCost,
@@ -135,7 +139,7 @@ contract DeployHelper {
         uint256 maxFeePerGas
     ) public view returns (uint256) {
         uint256 submissionCost = inbox.calculateRetryableSubmissionFee(0, block.basefee);
-        return NICK_CREATE2_VALUE + ERC2470_VALUE + ZOLTU_VALUE + ERC1820_VALUE
-            + 4 * (submissionCost + GASLIMIT * maxFeePerGas);
+        return NICK_CREATE2_VALUE + ERC2470_VALUE + ZOLTU_VALUE + ERC1820_VALUE + 4
+            * (submissionCost + GASLIMIT * maxFeePerGas);
     }
 }

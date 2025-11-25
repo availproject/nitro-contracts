@@ -320,9 +320,10 @@ contract Inbox is AbsInbox, IInbox {
         bytes32 messageDataHash,
         uint256 amount
     ) internal override returns (uint256) {
-        return IEthBridge(address(bridge)).enqueueDelayedMessage{value: amount}(
-            kind, AddressAliasHelper.applyL1ToL2Alias(sender), messageDataHash
-        );
+        return IEthBridge(address(bridge))
+        .enqueueDelayedMessage{
+            value: amount
+        }(kind, AddressAliasHelper.applyL1ToL2Alias(sender), messageDataHash);
     }
 
     /// @inheritdoc AbsInbox
